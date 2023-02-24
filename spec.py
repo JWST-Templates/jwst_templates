@@ -111,7 +111,8 @@ def cont_sub_curvefit(spectrum,  cont_region, line_region, line_params, verbose=
     '''
     use scipy.optimize.curve_fit to fit a single emission line (generalize later to multi lines)
     this will also give an uncertainty on each fit param, and thus on the flux, EW, etc. 
-    assume line_region is a specutils SpectralRegion
+    assumes spectrum is a specutils.Spectrum1D
+    assumes line_region is a specutils.SpectralRegion
     scale exists to set numbers closer to 1 so curve_fit doesn't get mad at me. it should be ~1/flux
     '''
     # first continuum subtract, same as before w/ specutils
