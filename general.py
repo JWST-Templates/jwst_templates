@@ -10,7 +10,7 @@ def get_targnames():
 def get_redshifts(kind='nebular'):
     names = get_targnames()
     if kind == 'nebular' :
-        redshifts = [1.3293, 2.9260, 3.76, 4.22] # these last 2 need more precision
+        redshifts = [1.3293, 2.9260, 3.76, 4.2248] # these last 2 need more precision
     elif kind == 'stellar'
         redshifts = [1.3293, 2.9252, 3.76, 4.22]
     # Origin of these redshifts:
