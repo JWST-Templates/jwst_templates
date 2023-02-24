@@ -10,4 +10,8 @@ def get_targnames():
 def get_redshifts():
     names = get_targnames()
     redshifts = [1.3293, 2.9252, 3.76, 4.22] # these last 2 need more precision
+    # Origin of these redshifts:
+    #    SGAS1723: Rigby et al. 2021
+    #    SGAS1226: Rigby et al. 2018
+    # 
     return( dict(zip(names, redshifts)))
