@@ -58,4 +58,3 @@ def fit_autocont(sp, zz, LL=None, colv2mask='v2mask', v2mask=200., boxcar=1001, 
     #print "DEBUGGING", np.isnan(smooth1).sum(),  np.isnan(smooth2).sum(), sp[colcont].isnull().sum()
     return(smooth1, smooth2)  # Do we need to return both? This was debugging
 
-
