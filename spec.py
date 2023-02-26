@@ -37,7 +37,7 @@ def convert_jwst_to_cgs(spaxel, pixar_sr):
     return spaxel_cgs
 
 
-def extract1D_cube_mask(cube, mask, pixar_sr, zsource=None, errmode=None, operation=op.nansum ):
+def extract1D_cube_mask(cube, mask, pixar_sr, zsource=None, errmode=None, operation=np.nansum ):
     '''
     Extract a 1D spectrum from an IFU cube given a pre-made mask
     Converts output to CGS units

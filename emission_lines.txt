@@ -1,36 +1,36 @@
-#Wavelengths are rest-frame in VACUUM bc god lives in a vacuum and she doesnt like air
+# Wavelengths are rest-frame in vacuum in Angstroms.
 # Reference key:  NIST is https://www.pa.uky.edu/~peter/atomic/
-#
+# When adding to this table, pls don't use whitespace inside colums, bc I am splitting on whitespace#
 restwave   label       plotlabel         reference
-3727.092    [OII]      r'[O~II]~3727'    NIST
-3729.875    [OII]      r'[O~II]~3730'    NIST       
-3869.86     Ne~III]'   r'[Ne~III]'       NIST
-3839.18     HeI        r'He~I~3839'      NIST
-3890.151    H8         r'H8'             NIST
-3968.593    [NeIII]    r'[Ne~III]~3969'  NIST
-3971.195    Heps       r'H$\epsilon$'    NIST
-4025.11705  HeI        r'He~I~4025'      NIST  
-4102.892    Hdelt	r'H$\delta$'     NIST
-4341.684    Hgam	r'H$\gamma$'     NIST
-4364.436    [O~III]     r'[O~III]~4363'	 NIST  
-4472.7	    HeI	        r'He~I~4473'     NIST
-4687.02     HeII'	r'HeII~4687'     NIST
-4741.4489   [ArIV]      r'[Ar~IV]'       NIST
-4862.683    Hbeta       r'H$\beta$'    NIST
-4960.295   [OIII]    r'[O~III]~4960'   NIST
-5008.240   [OIII]    r'[O~III]~5008'   NIST
-5578.8874  [OIII]    r'[O~III]~5579'   NIST
-5877.59    HeI       r'He~I~5878'      NIST
-6302.046   [OI]      r'[O~I]~6302'     NIST 
-6313.8     [SIII]    r'[S~III]~6314   NIST
-6549.85    [NII]     r'[N~II]~6550'    NIST
-6564.61    Halpha    r'H$\alpha$'      NIST
-6585.28    [NII]     r'[N~II]~6585'    NIST
-6718.29    [SII]     r'[S~II]~6718'    NIST
-6732.67    [SII]     r'[S~II]~6733'    NIST
-6365.536   [OI]      r'[O~I]~6366'     NIST
-6393.500   [OI]      r'[O~I]~6393'     NIST
-
+3727.092    [OII]       r'[O~II]~3727'     NIST
+3729.875    [OII]       r'[O~II]~3730'     NIST       
+3869.86     [NeIII]     r'[Ne~III]'        NIST
+3839.18     HeI         r'He~I~3839'       NIST
+3890.151    H8          r'H8'              NIST
+3968.593    [NeIII]     r'[Ne~III]~3969'   NIST
+3971.195    Hepsilon    r'H$\epsilon$'     NIST
+4025.11705  HeI         r'He~I~4025'       NIST  
+4102.892    Hdelta	r'H$\delta$'       NIST
+4341.684    Hgamma	r'H$\gamma$'       NIST
+4364.436    [OIII]      r'[O~III]~4363'	   NIST  
+4472.7	    HeI	        r'He~I~4473'       NIST
+4687.02     HeII	r'HeII~4687'       NIST
+4741.4489   [ArIV]      r'[Ar~IV]'         NIST
+4862.683    Hbeta       r'H$\beta$'        NIST
+4960.295   [OIII]       r'[O~III]~4960'    NIST
+5008.240   [OIII]       r'[O~III]~5008'    NIST
+5578.8874  [OIII]       r'[O~III]~5579'    NIST
+5877.59    HeI          r'He~I~5878'       NIST
+6302.046   [OI]         r'[O~I]~6302'      NIST 
+6313.8     [SIII]       r'[S~III]~6314     NIST
+6549.85    [NII]        r'[N~II]~6550'     NIST
+6564.61    Halpha       r'H$\alpha$'       NIST
+6585.28    [NII]        r'[N~II]~6585'     NIST
+6718.29    [SII]        r'[S~II]~6718'     NIST
+6732.67    [SII]        r'[S~II]~6733'     NIST
+6365.536   [OI]         r'[O~I]~6366'      NIST
+6393.500   [OI]         r'[O~I]~6393'      NIST
+# ** need to add the redder lines, out to Paschen alpha, and prob the Brackett lines too
 
 
 
