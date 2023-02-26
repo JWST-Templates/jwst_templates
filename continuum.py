@@ -30,7 +30,7 @@ def get_boxcar4autocont(sp, smooth_length=100., rest_disp=2.0) :
     # Returns the boxcar size in pixels
     return(np.int(util.round_up_to_odd(smooth_length / rest_disp)))  # in pixels
     # May want to make this act on an R, instead of a rest_disp, since that's more intuitive
-
+    # What should the inputs be here?  Observed dispersion, redshift (to convert to rest-frame disp), and smoothing length in Angstroms?
 
 def fit_autocont(sp, zz, LL=None, colv2mask='v2mask', v2mask=200., boxcar=1001, flag_lines=True, colwave='wave', colf='fnu', colmask='contmask', colcont='fnu_autocont') : 
     ''' Automatically fits a smooth continuum to a spectrum.  Generalized from Jane's version for Magellan/MagE data.
