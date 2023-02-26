@@ -31,7 +31,7 @@ restwave   label       plotlabel         reference
 6365.536   [OI]         r'[O~I]~6366'      NIST
 6393.500   [OI]         r'[O~I]~6393'      NIST
 # ** need to add the redder lines, out to Paschen alpha, and prob the Brackett lines too
-
+# Possibly useful resource:  http://astronomy.nmsu.edu/drewski/tableofemissionlines.html
 
 
 
