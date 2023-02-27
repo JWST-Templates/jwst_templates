@@ -17,6 +17,12 @@ from astropy.nddata import StdDevUncertainty
 import os
 
 
+def load_nirspec_dispersion(grating) : #grating as in 'prism', 'g140m', 'g235h' 
+    ndir = '/Users/jrrigby1/Python/TEMPLATES/jwst_templates/Reference_files/' # this is hardcoded.  Help having it look at the module?
+    Rfilename = 'jwst_nirspec_' + grating.lower() + '_disp.fits'
+    RR, Rheader = fits.getdata(ndir + Rfilename, header=True)
+    return(RR, Rheader)
+
 
 # some specific stuff for JWST IFU spectra:
 
