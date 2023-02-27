@@ -97,29 +97,29 @@ def gaussian(x, amp, mu, sigma):
     exponential = -1 * (x - mu)**2 / (2 * sigma**2)
     return amp * np.exp(exponential)
 
-def multigauss(x, paramdict):
-    amps = paramdict["amplitude"]
-    mus = paramdict["mean"]
-    sigs = paramdict["sigma"]
-    many_g = 0
-    for i in range(len(amps)):
-        many_g += gaussian(x, amps[i], mus[i], sigs[i])
-    return many_g
 
-def twogauss(x, amp1, mu1, sigma1, amp2, mu2, sigma2):
-    return gaussian(x, amp1, mu1, sigma1) + gaussian(x, amp2, mu2, sigma2)
-
-def threegauss(x, amp1, mu1, sigma1, amp2, mu2, sigma2, amp3, mu3, sigma3):
-    return gaussian(x, amp1, mu1, sigma1) + gaussian(x, amp2, mu2, sigma2) + gaussian(x, amp3, mu3, sigma3)
+def multigauss2(x, *args):
+    ngauss = int(len(args) / 3)
+    total = 0
+    for n in range(ngauss):
+        i = 3*n
+        j = 3*n + 1
+        k = 3*n + 2
+        total += gaussian(x, args[i], args[j], args[k])
+    return total    
 
 
-def cont_sub_curvefit(spectrum,  cont_region, line_region, line_params, verbose=False, scale=1e20):
+def cont_sub_curvefit(spectrum,  cont_region, line_region, line_param_dict, verbose=False, scale=1e20):
     '''
-    use scipy.optimize.curve_fit to fit a single emission line (generalize later to multi lines)
+    use scipy.optimize.curve_fit to fit N gaussians to N emission lines
     this will also give an uncertainty on each fit param, and thus on the flux, EW, etc. 
-    assumes spectrum is a specutils.Spectrum1D
-    assumes line_region is a specutils.SpectralRegion
+    assume spectrum is a specutile Spectrum1D object
+    assume cont_region, line_region is a specutils SpectralRegion
+    assume line_param_dict is a dictionary with keys "amplitude", "wavelength", and "width"
+    corresponding to gaussian amplitude, central wavelength (gauss mean), and linewidth (gauss sigma)
     scale exists to set numbers closer to 1 so curve_fit doesn't get mad at me. it should be ~1/flux
+    returns list of line fluxes, flux errors
+    if verbose, also returns curve_fit outputs (popt, pcov) and continuum-subtracted spectrum used in fitting
     '''
     # first continuum subtract, same as before w/ specutils
     cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
@@ -146,144 +146,48 @@ def cont_sub_curvefit(spectrum,  cont_region, line_region, line_params, verbose=
     # multiplying by scale factor to make fit function gremlins happy
     fit_flux = fit_spectrum.flux.value * scale
     fit_fluxerr = fit_spectrum.uncertainty.array * scale
-    print(wlunit)
+
+    # Unpack line param dict into single line param array
+    amps = line_param_dict["amplitude"]
+    means = line_param_dict["wavelength"]
+    sigs = line_param_dict["width"]
+    # for convenience:
+    ngauss = len(amps)
+    line_params = np.zeros(3*ngauss)
+    for i in range(ngauss):
+        line_params[3*i] = amps[i]
+        line_params[3*i + 1] = means[i]
+        line_params[3*i + 2] = sigs[i]
+
 
     # now we fit!
-    popt, pcov = curve_fit(gaussian, fit_wl, fit_flux, p0=line_params, sigma=fit_fluxerr, absolute_sigma=False)
+    popt, pcov = curve_fit(multigauss2, fit_wl, fit_flux, p0=line_params, sigma=fit_fluxerr, absolute_sigma=False)
     perr = np.sqrt(np.diag(pcov)) # calculate 1-sigma uncertainties on each parameter
+    
+    fluxlist = []
+    fluxerrlist = []
+    for n in range(ngauss):
+        i, j, k = 3*n, 3*n+1, 3*n+2
 
-    fit_amp, fit_mu, fit_sigma = popt
-    fit_amp /= scale # dividing by scale factor to make outputs make sense. 
-    d_amp, d_mu, d_sigma = perr 
-    d_amp /= scale # thanks code gremlins, look what you make us do!
+        fit_amp, fit_mu, fit_sigma = popt[i], popt[j], popt[k]
+        fit_amp /= scale # dividing by scale factor to make outputs make sense. 
+        d_amp, d_mu, d_sigma = perr[i], perr[j], perr[k]
+        d_amp /= scale # thanks code gremlins, look what you make us do!
 
-    if wlunit == 'um':
-        fit_sigma *= 1e4  #convert sigma from micron to angstrom so output unit makes sense
-    flux_out = np.sqrt(2*np.pi) * fit_amp * np.abs(fit_sigma) 
-    fluxerr_out = np.sqrt((d_amp/fit_amp)**2 + (d_sigma/np.abs(fit_sigma))**2) * flux_out
+        if wlunit == 'um':
+            fit_sigma *= 1e4  #convert sigma from micron to angstrom so output unit makes sense
+        flux = np.sqrt(2*np.pi) * fit_amp * np.abs(fit_sigma) 
+        fluxlist.append(flux)
+        fluxerr = np.sqrt((d_amp/fit_amp)**2 + (d_sigma/np.abs(fit_sigma))**2) * flux
+        fluxerrlist.append(fluxerr)
+
 
     if verbose:
-        return flux_out, fluxerr_out, popt, pcov, contsub_spec
+        return fluxlist, fluxerrlist, popt, pcov, contsub_spec
     else:
-        return flux_out, fluxerr_out
+        return fluxlist, fluxerrlist
 
 
-
-def cont_sub_2curvefit(spectrum,  cont_region, line_region, line_params, verbose=False, scale=1e20):
-    '''
-    use scipy.optimize.curve_fit to fit a sdouble gaussian to two blended/nearby emission lines
-    this will also give an uncertainty on each fit param, and thus on the flux, EW, etc. 
-    assume line_region is a specutils SpectralRegion, and is continuous
-    scale exists to set numbers closer to 1 so curve_fit doesn't get mad at me. it should be ~1/flux
-    '''
-    # first continuum subtract, same as before w/ specutils
-    cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
-
-    spaxwave = spectrum.spectral_axis
-
-    fitted_cont = fit_continuum(spectrum, window=cont_region)
-    y_cont = fitted_cont(spaxwave)
-
-    contsub_spec = spectrum - y_cont
-
-    # now we extract the line region
-    line_min, line_max = line_region.lower.value, line_region.upper.value
-
-    fit_spectrum = extract_region(contsub_spec, line_region, return_single_spectrum=True)
-    if max(fit_spectrum.spectral_axis.value) < 1:
-        fit_wl = fit_spectrum.spectral_axis.value * 1e4 # convert to angstrom to appease fitting gremlins
-        wlunit = 'AA'
-    else:
-        fit_wl = fit_spectrum.spectral_axis.value # don't convert if microns are greater than 1
-        wlunit = 'um'
-    #print(min(fit_wl), max(fit_wl))
-    # multiplying by scale factor to make fit function gremlins happy
-    fit_flux = fit_spectrum.flux.value * scale
-    fit_fluxerr = fit_spectrum.uncertainty.array * scale
-
-    # now we fit!
-    popt, pcov = curve_fit(twogauss, fit_wl, fit_flux, p0=line_params, sigma=fit_fluxerr, absolute_sigma=False)
-    perr = np.sqrt(np.diag(pcov)) # calculate 1-sigma uncertainties on each parameter
-
-    fit_amp1, fit_mu1, fit_sigma1, fit_amp2, fit_mu2, fit_sigma2 = popt
-    fit_amp1 /= scale # dividing by scale factor to make outputs make sense. 
-    fit_amp2 /= scale
-    d_amp1, d_mu1, d_sigma1, d_amp2, d_mu2, d_sigma2 = perr 
-    d_amp1 /= scale # thanks code gremlins, look what you make us do!
-    d_amp2 /= scale
-    if wlunit == 'um':
-        fit_sigma1 *= 1e4  #convert sigma from micron to angstrom so output unit makes sense
-        fit_sigma2 *= 1e4
-    flux_out1 = np.sqrt(2*np.pi) * fit_amp1 * np.abs(fit_sigma1) #convert sigma from micron to angstrom so output unit makes sense
-    fluxerr_out1 = np.sqrt((d_amp1/fit_amp1)**2 + (d_sigma1/np.abs(fit_sigma1))**2) * flux_out1
-    flux_out2 = np.sqrt(2*np.pi) * fit_amp2 * np.abs(fit_sigma2) #again for second line
-    fluxerr_out2 = np.sqrt((d_amp2/fit_amp2)**2 + (d_sigma2/np.abs(fit_sigma2))**2) * flux_out2
-
-    if verbose:
-        return flux_out1, fluxerr_out1, flux_out2, fluxerr_out2, popt, pcov, contsub_spec
-    else:
-        return flux_out1, fluxerr_out1, flux_out2, fluxerr_out2
-
-
-def cont_sub_3curvefit(spectrum,  cont_region, line_region, line_params, verbose=False, scale=1e20):
-    '''
-    use scipy.optimize.curve_fit to fit a sdouble gaussian to two blended/nearby emission lines
-    this will also give an uncertainty on each fit param, and thus on the flux, EW, etc. 
-    assume line_region is a specutils SpectralRegion, and is continuous
-    scale exists to set numbers closer to 1 so curve_fit doesn't get mad at me. it should be ~1/flux
-    '''
-    # first continuum subtract, same as before w/ specutils
-    cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
-
-    spaxwave = spectrum.spectral_axis
-
-    fitted_cont = fit_continuum(spectrum, window=cont_region)
-    y_cont = fitted_cont(spaxwave)
-
-    contsub_spec = spectrum - y_cont
-
-    # now we extract the line region
-    line_min, line_max = line_region.lower.value, line_region.upper.value
-
-    fit_spectrum = extract_region(contsub_spec, line_region, return_single_spectrum=True)
-    if max(fit_spectrum.spectral_axis.value) < 1:
-        fit_wl = fit_spectrum.spectral_axis.value * 1e4 # convert to angstrom to appease fitting gremlins
-        wlunit = 'AA'
-    else:
-        fit_wl = fit_spectrum.spectral_axis.value # don't convert if microns are greater than 1
-        wlunit = 'um'
-    #print(min(fit_wl), max(fit_wl))
-    # multiplying by scale factor to make fit function gremlins happy
-    fit_flux = fit_spectrum.flux.value * scale
-    fit_fluxerr = fit_spectrum.uncertainty.array * scale
-
-    # now we fit!
-    popt, pcov = curve_fit(threegauss, fit_wl, fit_flux, p0=line_params, sigma=fit_fluxerr, absolute_sigma=False)
-    perr = np.sqrt(np.diag(pcov)) # calculate 1-sigma uncertainties on each parameter
-
-    fit_amp1, fit_mu1, fit_sigma1, fit_amp2, fit_mu2, fit_sigma2, fit_amp3, fit_mu3, fit_sigma3 = popt
-    fit_amp1 /= scale # dividing by scale factor to make outputs make sense. 
-    fit_amp2 /= scale
-    fit_amp3 /= scale
-    d_amp1, d_mu1, d_sigma1, d_amp2, d_mu2, d_sigma2, d_amp3, d_mu3, d_sigma3 = perr 
-    d_amp1 /= scale # thanks code gremlins, look what you make us do!
-    d_amp2 /= scale
-    d_amp3 /= scale
-    if wlunit == 'um':
-        fit_sigma1 *= 1e4
-        fit_sigma2 *= 1e4  #convert sigma from micron to angstrom so output unit makes sense
-        fit_sigma3 *= 1e4
-    flux_out1 = np.sqrt(2*np.pi) * fit_amp1 * np.abs(fit_sigma1) #convert sigma from micron to angstrom so output unit makes sense
-    fluxerr_out1 = np.sqrt((d_amp1/fit_amp1)**2 + (d_sigma1/np.abs(fit_sigma1))**2) * flux_out1
-    flux_out2 = np.sqrt(2*np.pi) * fit_amp2 * np.abs(fit_sigma2) #again for second line
-    fluxerr_out2 = np.sqrt((d_amp2/fit_amp2)**2 + (d_sigma2/np.abs(fit_sigma2))**2) * flux_out2
-    flux_out3 = np.sqrt(2*np.pi) * fit_amp3 * np.abs(fit_sigma3) #again for third line
-    fluxerr_out3 = np.sqrt((d_amp3/fit_amp3)**2 + (d_sigma3/np.abs(fit_sigma3))**2) * flux_out3
-
-    if verbose:
-        return flux_out1, fluxerr_out1, flux_out2, fluxerr_out2, flux_out3, fluxerr_out3, popt, pcov, contsub_spec
-    else:
-        return flux_out1, fluxerr_out1, flux_out2, fluxerr_out2, flux_out3, fluxerr_out3
 
 
 # I was going to write something using scipy least_squares, 
