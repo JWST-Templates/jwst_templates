@@ -1,4 +1,4 @@
-''' Helper functions to analyze data from the JWST TEMPLATES Early Release Science
+<<<<<<< HEAD''' Helper functions to analyze data from the JWST TEMPLATES Early Release Science
 (ERS) program. See our website: https://sites.google.com/view/jwst-templates/?pli=1 
 and our code https://github.com/JWST-Templates'''
 
@@ -7,12 +7,15 @@ def get_targnames():
     # Let's use common nomenclature everywhere to make life easier
     return(('SGAS1723+34', 'SGAS1226+21', 'SPT2147-50', 'SPT0418-47'))
 
-def get_redshifts():
+def get_redshifts(kind='nebular'):
     names = get_targnames()
-    redshifts = [1.3293, 2.9252, 3.7615, 4.2275] # these last 2 need more precision
+    if kind == 'nebular'   :
+        redshifts = [1.3293, 2.9260, 3.7615, 4.2248] # these last 2 need more precision
+    elif kind == 'stellar' :
+        redshifts = [1.3293, 2.9252, 3.76, 4.22]
     # Origin of these redshifts:
     #    SGAS1723: Rigby et al. 2021
-    #    SGAS1226: Rigby et al. 2018
-    #    SPT2147-50: Birkin et al. in prep. (NIRSpec Halpha)
-    #    SPT0418-47: Birkin et al. in prep. (NIRSpec Halpha)
+    #    SGAS1226: Rigby et al. 2018 
+    #    SPT2147-50: NIRSpec H-alpha
+    #    SPT0418-47: NIRSpec H-alpha
     return( dict(zip(names, redshifts)))

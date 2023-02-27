@@ -1,0 +1,8 @@
+NIRSpec dispersion files (jwst_nirspec_*_disp.fits) were downloaded from :
+https://jwst-docs.stsci.edu/jwst-near-infrared-spectrograph/nirspec-instrumentation/nirspec-dispersers-and-filters
+They are pre-launch dispersion solutions.
+
+JWST filter specifications in jwst_filters.txt were downloaded from multiple JDox pages, as given in the file header
+
+emission_lines.txt is a list of rest wavelengths for prominent emission lines that need to be masked before continuum
+subtraction.  References given in the header
