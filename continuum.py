@@ -10,7 +10,7 @@ def load_default_linelist(v2mask=200.):
     # Load a linelist of rest-frame optical (need to add near-IR, incl Paa,B) emission
     # lines, to be masked before fitting the continuum.
     # column v2mask' is velocity +- to mask each emission line, in km/s.  May want to adjust for the brightest lines.
-    linelistfile = '/Users/jrrigby1/Python/TEMPLATES/jwst_templates/emission_lines.txt'
+    linelistfile = '/Users/jrrigby1/Python/TEMPLATES/jwst_templates/Reference_files/emission_lines.txt'
     # above is hardcoded.  Need to train it to look in the python module. **
     LL = pandas.read_csv(linelistfile, comment='#', delim_whitespace=True)
     LL['v2mask'] = v2mask
