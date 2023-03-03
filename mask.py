@@ -11,15 +11,15 @@ For now, this holds the NIRSpec masking code, but we've made it separate than th
 from jwst_templates import spec
 
 
-def get_matrix_coords(cube):
+def get_matrix_coords(dims):
     '''
-    Given an input 3D cube, it will convert those x,y spaxel
+    Given an input 3D cube dimensions, it will convert the x,y spaxel
     coordinates into a list.
     
     WILL MOVE TO SPEC.PY SOON AS A CONVENIENCE CODE
     
     '''
-    x0,y0 = np.arange(0,cube.shape[2]),np.arange(0,cube.shape[1])
+    x0,y0 = np.arange(0,dims[2]),np.arange(0,dims[1])
     g = np.meshgrid(x0,y0)
     coords = list(zip(*(c.flat for c in g))) # coords we'll walk through
     return coords
