@@ -17,10 +17,9 @@ from astropy.nddata import StdDevUncertainty
 import os
 
 def load_nirspec_dispersion(grating) : #grating as in 'prism', 'g140m', 'g235h' 
-    ndir = '/Users/jrrigby1/Python/TEMPLATES/jwst_templates/Reference_files/' # this is hardcoded.
-    # I need help getting the above line to look inside the module's Reference_files/
+    refdir = os.path.join(os.path.dirname(__file__), 'Reference_files/')
     Rfilename = 'jwst_nirspec_' + grating.lower() + '_disp.fits'
-    RR, Rheader = fits.getdata(ndir + Rfilename, header=True)
+    RR, Rheader = fits.getdata(refdir + Rfilename, header=True)
     # WAVELENGTH will be wavelength in micron, DLDS will be dispersion in microns per pixel; R is dimensionless spectral resolution
     return(RR, Rheader)
 

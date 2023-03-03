@@ -1,4 +1,5 @@
-<<<<<<< HEAD''' Helper functions to analyze data from the JWST TEMPLATES Early Release Science
+#<<<<<<< HEAD
+''' Helper functions to analyze data from the JWST TEMPLATES Early Release Science
 (ERS) program. See our website: https://sites.google.com/view/jwst-templates/?pli=1 
 and our code https://github.com/JWST-Templates'''
 
