@@ -1,6 +1,12 @@
 NIRSpec dispersion files (jwst_nirspec_*_disp.fits) were downloaded from :
 https://jwst-docs.stsci.edu/jwst-near-infrared-spectrograph/nirspec-instrumentation/nirspec-dispersers-and-filters
 They are pre-launch dispersion solutions.
+From JDox: These are binary fits tables that contain 3 columns: wavelength (μm), dispersion (μm/pixel) and resolution (λ⁄Δλ, unitless). 
+
+
+NIRSpec transmission files were downloaded from the same website as above.  The website says they're what's in
+v2.0 of the ETC, which is the post-commissioning ETC.
+These are binary FITS tables that contain 2 columns: wavelength (μm) and throughout. 
 
 JWST filter specifications in jwst_filters.txt were downloaded from multiple JDox pages, as given in the file header
 

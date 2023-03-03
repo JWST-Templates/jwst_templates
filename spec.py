@@ -3,6 +3,7 @@
 import numpy as np
 
 from scipy.optimize import curve_fit
+from scipy.interpolate import interp1d
 from specutils.manipulation import extract_region # to get sub-regions
 
 from specutils.spectra import Spectrum1D
@@ -16,14 +17,17 @@ from astropy.nddata import StdDevUncertainty
 
 import os
 
-def load_nirspec_dispersion(grating) : #grating as in 'prism', 'g140m', 'g235h' 
-    ndir = '/Users/jrrigby1/Python/TEMPLATES/jwst_templates/Reference_files/' # this is hardcoded.
-    # I need help getting the above line to look inside the module's Reference_files/
-    Rfilename = 'jwst_nirspec_' + grating.lower() + '_disp.fits'
-    RR, Rheader = fits.getdata(ndir + Rfilename, header=True)
-    # WAVELENGTH will be wavelength in micron, DLDS will be dispersion in microns per pixel; R is dimensionless spectral resolution
-    return(RR, Rheader)
+def rebin_spec_new(wave, specin, new_wave, kind='linear', fill=np.nan, return_masked=False):
+    # By default, this does linear interpolation (kind='linear').
+    # Rebin spectra (wave, specin) to new wavelength aray new_wave.  Fill values are nan.  If return_masked, then mask the nans
+    # this is copied from janerigby's github, jrr/spec.py
+    f = interp1d(wave, specin, kind=kind, bounds_error=False, fill_value=fill)  # With these settings, writes NaN to extrapolated regions
+    new_spec = f(new_wave)
+    if return_masked :  return(util.mask_nans(new_spec))
+    else :              return(new_spec)
 
+        
+        
 # some specific stuff for JWST IFU spectra:
 
 def convert_jwst_to_cgs(spaxel, pixar_sr):

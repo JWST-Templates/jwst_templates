@@ -5,7 +5,6 @@ import astropy.convolution
 import numpy as np
 
 
-
 def load_default_linelist(v2mask=200.):
     # Load a linelist of rest-frame optical (need to add near-IR, incl Paa,B) emission
     # lines, to be masked before fitting the continuum.
@@ -20,6 +19,13 @@ def round_up_to_odd(f):
     # Rounds up to nearest odd integer. Boxcar needs to be an odd integer.
     return np.ceil(f) // 2 * 2 + 1
 
+def boxcar_nirspec(grating, filtname, zz):
+    # inputs are nirspec grating name, filter name, and redshift
+    # output is boxcar smoothing function in pixels.
+    # JR still needs to write this
+    return(0) 
+
+  
 def get_boxcar4autocont(sp, smooth_length=100., rest_disp=2.0) :
     # Helper function for fit_autocont().  For the given input spectrum, finds the number of pixels that
     # corresponds to smooth_length in rest-frame Angstroms.  This will be the boxcar smoothing length.
