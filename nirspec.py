@@ -4,9 +4,8 @@ from astropy.table import Table
 from jwst_templates import spec, continuum
 import numpy as np
 
-def load_dispersion(grating) : #grating as in 'prism', 'g140m', 'g235h' 
-    ndir = '/Users/jrrigby1/Python/TEMPLATES/jwst_templates/Reference_files/' # this is hardcoded.
-    # I need help getting the above line to look inside the module's Reference_files/
+def load_dispersion(grating) : #grating as in 'prism', 'g140m', 'g235h'
+    refdir = os.path.join(os.path.dirname(__file__), 'Reference_files/')
     filename = 'jwst_nirspec_' + grating.lower() + '_disp.fits'
     print("DEBUG", filename)
     RR, Rheader = fits.getdata(ndir + filename, header=True)   # old way
@@ -39,6 +38,5 @@ def calc_avg_specR(grating, filtname, op=np.nanmean):
     weighted_disp = (df_R.DLDS * df_R.throughput).sum() / df_R.throughput.sum()   
     return(weighted_R, weighted_disp)
     
-
 
 # Need to add error trapping if the filter name or grating name is not recognized 
