@@ -3,14 +3,13 @@
 import pandas
 import astropy.convolution
 import numpy as np
-
+import os
 
 def load_default_linelist(v2mask=200.):
     # Load a linelist of rest-frame optical (need to add near-IR, incl Paa,B) emission
     # lines, to be masked before fitting the continuum.
     # column v2mask' is velocity +- to mask each emission line, in km/s.  May want to adjust for the brightest lines.
-    linelistfile = '/Users/jrrigby1/Python/TEMPLATES/jwst_templates/Reference_files/emission_lines.txt'
-    # above is hardcoded.  Need to train it to look in the python module. **
+    linelistfile = os.path.join(os.path.dirname(__file__), 'Reference_files/emission_lines.txt')
     LL = pandas.read_csv(linelistfile, comment='#', delim_whitespace=True)
     LL['v2mask'] = v2mask
     return(LL)
@@ -50,7 +49,7 @@ def fit_autocont(sp, zz, LL=None, colv2mask='v2mask', v2mask=200., boxcar=1001, 
               colcont, column to write the continuum.  The output!
     '''
     if LL == None:  LL = load_default_linelist(v2mask=v2mask)  # Grab a default linelist if none provided
-
+    
     if flag_lines :
         if colmask not in sp : sp[colmask] = False
         flag_near_lines(sp, LL, colv2mask=colv2mask, colwave=colwave)  # lines are masked in sp.linemask

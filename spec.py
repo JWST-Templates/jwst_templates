@@ -25,26 +25,53 @@ def rebin_spec_new(wave, specin, new_wave, kind='linear', fill=np.nan, return_ma
     new_spec = f(new_wave)
     if return_masked :  return(util.mask_nans(new_spec))
     else :              return(new_spec)
-
         
         
 # some specific stuff for JWST IFU spectra:
 
-def convert_jwst_to_cgs(spaxel, pixar_sr):
-    cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
+# def convert_jwst_to_cgs(spaxel, pixar_sr):
+#     cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
     
-    spaxflux = spaxel.flux
-    spaxwave = spaxel.spectral_axis
-    spaxerr = spaxel.uncertainty
+#     spaxflux = spaxel.flux
+#     spaxwave = spaxel.spectral_axis
+#     spaxerr = spaxel.uncertainty
 
-    flux_jy = (spaxflux * pixar_sr).to(u.Jy)
-    flux_cgs = flux_jy.to(cgs, equivalencies=u.spectral_density(spaxwave))
-    err_jy = (spaxerr.array * u.MJy * u.sr**-1 * pixar_sr).to(u.Jy)
-    err_cgs = err_jy.to(cgs, equivalencies=u.spectral_density(spaxwave))
-    err_cgs = StdDevUncertainty(err_cgs)
+#     flux_jy = (spaxflux * pixar_sr).to(u.Jy)
+#     flux_cgs = flux_jy.to(cgs, equivalencies=u.spectral_density(spaxwave))
+#     err_jy = (spaxerr.array * u.MJy * u.sr**-1 * pixar_sr).to(u.Jy)
+#     err_cgs = err_jy.to(cgs, equivalencies=u.spectral_density(spaxwave))
+#     err_cgs = StdDevUncertainty(err_cgs)
 
-    spaxel_cgs = Spectrum1D(flux=flux_cgs, spectral_axis=spaxwave, uncertainty=err_cgs)
-    return spaxel_cgs
+#     spaxel_cgs = Spectrum1D(flux=flux_cgs, spectral_axis=spaxwave, uncertainty=err_cgs)
+#     return spaxel_cgs
+
+
+def convert_jwst_to_cgs(spaxel, pixar_sr):
+    '''
+    INPUTS:
+    >> spaxel  --------  a pandas dataframe set up with columns
+                         "wave", "flux", "ferr"; assumes wave is 
+                         in microns and flux, ferr are in MJy
+    OUTPUTS:
+    >> spaxel ---------  the same pandas dataframe but in cgs
+    '''
+    # converting from MJy/sr to MJy
+    spaxel['flux'] *= pixar_sr # MJy/sr --> MJy
+    spaxel['ferr'] *= pixar_sr # MJy/sr --> MJy
+    
+    # converting spectrum flux to cgs units
+    spaxel['flux'] *= 1e6 # MJy --> Jy
+    spaxel['flux'] *= 1e-23 # Jy --> erg/s/cm/Hz (fnu)
+    spaxel['flux'] *= 2.998e14 / (spaxel.wave.values)**2 # fnu --> flam
+    
+    # converting spectrum error to cgs units
+    spaxel['ferr'] *= 1e6 # MJy --> Jy
+    spaxel['ferr'] *= 1e-23 # Jy --> erg/s/cm/Hz (fnu)
+    spaxel['ferr'] *= 2.998e14 / (spaxel.wave.values)**2 # fnu --> flam
+    
+    return spaxel.copy()
+
+
 
 
 def extract1D_cube_mask(cube, mask, pixar_sr, zsource=None, errmode=None, operation=np.nansum ):

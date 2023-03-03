@@ -35,7 +35,7 @@ def getwidth_for_filter(*args):
     
 def pixscale(*args):
     # Retrieve the pixel scale in arcseconds, for a given detector. Have not added NIRSpec yet
-    pixscale = {'nrc_sw': 0.031, 'nrc_lw': 0.063, 'niriss': 0.0656, 'fgs': 0.0656, 'miri_imager':0.11} #from JDox
+    pixscale = {'nrc_sw': 0.031, 'nrc_lw': 0.063, 'niriss': 0.0656, 'fgs': 0.0656, 'miri_imager':0.11, 'nirspec': 0.1} #from JDox
     if len(args)==0 : return(pixscale)
     elif len(args)==1 and args[0] in pixscale.keys() :
         return(pixscale[args[0]])

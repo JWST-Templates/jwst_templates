@@ -10,11 +10,12 @@ def get_targnames():
 def get_redshifts(kind='nebular'):
     names = get_targnames()
     if kind == 'nebular'   :
-        redshifts = [1.3293, 2.9260, 3.76, 4.2248] # these last 2 need more precision
+        redshifts = [1.3293, 2.9260, 3.7600, 4.2260]
     elif kind == 'stellar' :
         redshifts = [1.3293, 2.9252, 3.76, 4.22]
     # Origin of these redshifts:
     #    SGAS1723: Rigby et al. 2021
     #    SGAS1226: Rigby et al. 2018 
-    # 
+    #    SPT2147-50: NIRSpec H-alpha
+    #    SPT0418-47: NIRSpec H-alpha
     return( dict(zip(names, redshifts)))
