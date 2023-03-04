@@ -18,7 +18,7 @@ def round_up_to_odd(f):
     # Rounds up to nearest odd integer. Boxcar needs to be an odd integer.
     return np.ceil(f) // 2 * 2 + 1
 
-def boxcar_nirspec(grating, filtname, zz):
+< def get_boxcar4autocont(filtname, grating, smooth_length=100., rest_disp=2.0) :
     # inputs are nirspec grating name, filter name, and redshift
     # output is boxcar smoothing function in pixels.
     # JR still needs to write this
