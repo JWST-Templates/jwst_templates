@@ -2,6 +2,7 @@
 # Contributors: jrigby, 2023
 import pandas
 import astropy.convolution
+from jwst_templates import nirspec
 import numpy as np
 import os
 
@@ -18,13 +19,6 @@ def round_up_to_odd(f):
     # Rounds up to nearest odd integer. Boxcar needs to be an odd integer.
     return np.ceil(f) // 2 * 2 + 1
 
-< def get_boxcar4autocont(filtname, grating, smooth_length=100., rest_disp=2.0) :
-    # inputs are nirspec grating name, filter name, and redshift
-    # output is boxcar smoothing function in pixels.
-    # JR still needs to write this
-    return(0) 
-
-  
 def get_boxcar4autocont(sp, smooth_length=100., rest_disp=2.0) :
     # Helper function for fit_autocont().  For the given input spectrum, finds the number of pixels that
     # corresponds to smooth_length in rest-frame Angstroms.  This will be the boxcar smoothing length.
@@ -32,8 +26,16 @@ def get_boxcar4autocont(sp, smooth_length=100., rest_disp=2.0) :
     # rest_disp is rest-frame dispersion in Angstroms
     # Returns the boxcar size in pixels
     return(np.int(util.round_up_to_odd(smooth_length / rest_disp)))  # in pixels
-    # May want to make this act on an R, instead of a rest_disp, since that's more intuitive
-    # What should the inputs be here?  Observed dispersion, redshift (to convert to rest-frame disp), and smoothing length in Angstroms?
+
+def get_boxcar4autocont_nirspec(gratingname, filtername, zz, smooth_length=100) :
+    # Helper function to compute boxcar smoothing length, in pixels, for NIRSpec continuum fitting.
+    # Inputs are nirspec filter name, grating name, redshift, & desired smoothing length (in rest-frame Angstroms). 
+    # Output is boxcar smoothing function in pixels.
+    # I think this works, need to test it.  
+    wht_R, wht_dispersion_micron_obs = nirspec.calc_avg_specR(gratingname, filtername)
+    wht_dispersion_Arest = wht_dispersion_micron_obs *1E4 / (1+zz)  ## Deredshift, convert from micron to Angstroms
+    pix = smooth_length / wht_dispersion_Arest
+    return(pix)
 
 def fit_autocont(sp, zz, LL=None, colv2mask='v2mask', v2mask=200., boxcar=1001, flag_lines=True, colwave='wave', colf='fnu', colmask='contmask', colcont='fnu_autocont') : 
     ''' Automatically fits a smooth continuum to a spectrum.  Generalized from Jane's version for Magellan/MagE data.
