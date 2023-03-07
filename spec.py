@@ -25,6 +25,24 @@ def rebin_spec_new(wave, specin, new_wave, kind='linear', fill=np.nan, return_ma
     new_spec = f(new_wave)
     if return_masked :  return(util.mask_nans(new_spec))
     else :              return(new_spec)
+
+
+
+def get_matrix_coords(dims):
+    '''
+    Given an input 3D cube dimensions, it will convert the 
+    x,y spaxel coordinates into a list.
+    
+    Input can be written as:
+    >> get_matrix_coords(cube.shape) # easiest method
+    >> get_matrix_coords((1000,50,50)) # if manually inputting dims
+
+    '''
+    x0,y0 = np.arange(0,dims[2]),np.arange(0,dims[1])
+    g = np.meshgrid(x0,y0)
+    coords = list(zip(*(c.flat for c in g))) # coords we'll walk through
+    return coords
+
         
         
 # some specific stuff for JWST IFU spectra:
