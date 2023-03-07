@@ -1,6 +1,7 @@
 # Spectroscopy helper functions for JWST ERS program TEMPLATES
 
 import numpy as np
+import pandas as pd
 
 from scipy.optimize import curve_fit
 from scipy.interpolate import interp1d
@@ -47,22 +48,6 @@ def get_matrix_coords(dims):
         
 # some specific stuff for JWST IFU spectra:
 
-# def convert_jwst_to_cgs(spaxel, pixar_sr):
-#     cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
-    
-#     spaxflux = spaxel.flux
-#     spaxwave = spaxel.spectral_axis
-#     spaxerr = spaxel.uncertainty
-
-#     flux_jy = (spaxflux * pixar_sr).to(u.Jy)
-#     flux_cgs = flux_jy.to(cgs, equivalencies=u.spectral_density(spaxwave))
-#     err_jy = (spaxerr.array * u.MJy * u.sr**-1 * pixar_sr).to(u.Jy)
-#     err_cgs = err_jy.to(cgs, equivalencies=u.spectral_density(spaxwave))
-#     err_cgs = StdDevUncertainty(err_cgs)
-
-#     spaxel_cgs = Spectrum1D(flux=flux_cgs, spectral_axis=spaxwave, uncertainty=err_cgs)
-#     return spaxel_cgs
-
 
 def convert_jwst_to_cgs(spaxel, pixar_sr):
     '''
@@ -74,69 +59,66 @@ def convert_jwst_to_cgs(spaxel, pixar_sr):
     >> spaxel ---------  the same pandas dataframe but in cgs
     '''
     # converting from MJy/sr to MJy
-    spaxel['flux'] *= pixar_sr # MJy/sr --> MJy
-    spaxel['ferr'] *= pixar_sr # MJy/sr --> MJy
+    spaxel['flam'] *= pixar_sr # MJy/sr --> MJy
+    spaxel['flamerr'] *= pixar_sr # MJy/sr --> MJy
     
     # converting spectrum flux to cgs units
-    spaxel['flux'] *= 1e6 # MJy --> Jy
-    spaxel['flux'] *= 1e-23 # Jy --> erg/s/cm/Hz (fnu)
-    spaxel['flux'] *= 2.998e14 / (spaxel.wave.values)**2 # fnu --> flam
+    spaxel['flam'] *= 1e6 # MJy --> Jy
+    spaxel['flam'] *= 1e-23 # Jy --> erg/s/cm/Hz (fnu)
+    spaxel['flam'] *= 2.998e18 / (spaxel.wave.values*1e4)**2 # fnu --> flam (erg/s/cm^2/AA)
     
     # converting spectrum error to cgs units
-    spaxel['ferr'] *= 1e6 # MJy --> Jy
-    spaxel['ferr'] *= 1e-23 # Jy --> erg/s/cm/Hz (fnu)
-    spaxel['ferr'] *= 2.998e14 / (spaxel.wave.values)**2 # fnu --> flam
+    spaxel['flamerr'] *= 1e6 # MJy --> Jy
+    spaxel['flamerr'] *= 1e-23 # Jy --> erg/s/cm/Hz (fnu)
+    spaxel['flamerr'] *= 2.998e18 / (spaxel.wave.values*1e4)**2 # fnu --> flam (erg/s/cm^2/AA)
     
     return spaxel.copy()
 
 
 
 
-def extract1D_cube_mask(cube, mask, pixar_sr, zsource=None, errmode=None, operation=np.nansum ):
+def integrate1D_mask(cubefile, maskfile, zsource=None, operation=np.nansum):
     '''
-    Extract a 1D spectrum from an IFU cube given a pre-made mask
-    Converts output to CGS units
+    Creates an integrated 1D spectrum from an IFU cube file given a pre-made mask.
+    Inputs are fits files, one for the IFU cube (cubefile) and one for the mask (maskfile).
+    If a redshift (zsource) is given, a rest-frame wavelength will be calculated.
+    Output will be a pandas dataframe with wavelength, flam (erg/s/cm^2/A), flamerr (erg/s/cm^2/A).
+    If zsource is given, rest_wave column will be added to dataframe
     '''
-    cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
+    # reading in IFU cube and header info
+    hdu = fits.open(cubefile)
+    header = hdu[1].header
+    dat = hdu[1].data  # in MJy/sr
+    err = hdu[2].data  # error, same units as dat
     
-    cubewl = cube.spectral_axis
-    cubeflux = cube.flux
-    cuberr = cube.uncertainty
+    # using header info
+    pixar_sr = header['PIXAR_SR'] # pixel area, in sr
+    wl = np.arange(header['CRVAL3'],  # wavelength in micron
+            header['CRVAL3']+(header['CDELT3']*len(dat)), 
+            header['CDELT3'])
     
-    cubeflux_jy = (cubeflux * pixar_sr).to(u.Jy)
-    cubeflux_cgs = cubeflux_jy.to(cgs, equivalencies=u.spectral_density(cubewl))
-    cuberr_jy = (cuberr.array * u.MJy * u.sr**-1 * pixar_sr).to(u.Jy)
-    cuberr_cgs = cuberr_jy.to(cgs, equivalencies=u.spectral_density(cubewl))
-    #cuberr_cgs = StdDevUncertainty(cuberr_cgs)
-    flux0 = cubeflux_cgs
-    err0 = cuberr_cgs
-    
-    if mask.shape != flux0[:,:,0].shape:
+    # reading in the mask of the galaxy (0=not galaxy, 1=galaxy)
+    mask = fits.open(maskfile)[0].data
+    if mask.shape != dat[0].shape:
         mask = mask.T
-
-    flux1 = []
-    err1 = []
-    for i in range(0,cubewl.shape[0]):
-        flux_i = operation(flux0[:,:,i].value * mask)
-        flux1.append(flux_i)
-    flux1 = np.array(flux1) * cgs
-
-    if errmode == 'bullshit':
-        err1 = np.ones_like(flux1)
-    else:
-        for i in range(0,cubewl.shape[0]):
-            err_i = operation(err0[:,:,i].value * mask)
-            err1.append(err_i)
-        err1 = np.array(err1)
-    err_out = StdDevUncertainty(err1)
-
+        
+    # broadcasting mask to IFU cube
+    longmask = np.broadcast_to(mask, dat.shape)
+    
+    # using chosen operation on flux density and associated error
+    flux = operation(dat * longmask, axis=(1,2))
+    error = np.sqrt(operation(err**2 * longmask, axis=(1,2)))
+    
+    # making dataframe of final spectrum
+    df = pd.DataFrame({'wave':wl, 'flam':flux, 'flamerr':error})
+    df_cgs = convert_jwst_to_cgs(df, pixar_sr)
+    
+    # if source has a redshift, will add rest wavelength column
     if zsource:
-        spec_out = Spectrum1D(flux=flux1, spectral_axis=cubewl/(1+zsource), uncertainty=err_out)
-    else:
-        spec_out = Spectrum1D(flux=flux1, spectral_axis=cubewl, uncertainty=err_out)
-
-    return(spec_out)
-
+        wl_rest = wl / (1+zsource)
+        df_cgs["rest_wave"] = wl_rest
+        
+    return df_cgs
 
 
 
