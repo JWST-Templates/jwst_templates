@@ -24,7 +24,7 @@ def rebin_spec_new(wave, specin, new_wave, kind='linear', fill=np.nan, return_ma
     # this is copied from janerigby's github, jrr/spec.py
     f = interp1d(wave, specin, kind=kind, bounds_error=False, fill_value=fill)  # With these settings, writes NaN to extrapolated regions
     new_spec = f(new_wave)
-    if return_masked :  return(util.mask_nans(new_spec))
+    if return_masked :  return(np.ma.masked_array(data,np.isnan(new_spec)))
     else :              return(new_spec)
 
 
