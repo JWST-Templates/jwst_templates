@@ -8,7 +8,7 @@ import os
 def load_dispersion(grating) : #grating as in 'prism', 'g140m', 'g235h'
     refdir = os.path.join(os.path.dirname(__file__), 'Reference_files/')
     filename = 'jwst_nirspec_' + grating.lower() + '_disp.fits'
-    print("DEBUG", filename)
+    # print("DEBUG", filename)
     RR, Rheader = fits.getdata(refdir + filename, header=True)   # old way
     df_R = Table.read(refdir + filename).to_pandas()             # ah, pandas  
     # WAVELENGTH will be wavelength in micron, DLDS will be dispersion in microns per pixel; R is dimensionless spectral resolution
@@ -18,7 +18,7 @@ def load_filter_throughput(filtname):
     # Get the transmission curve for a NIRSpec filter
     refdir = os.path.join(os.path.dirname(__file__), 'Reference_files/')
     filename = 'jwst_nirspec_' + filtname.lower() + '_trans.fits'
-    print("DEBUG", filename)
+    # print("DEBUG", filename)
     throughput, header = fits.getdata(refdir + filename, header=True)   # old way
     df_throughput  = Table.read(refdir + filename).to_pandas()          # ah, pandas
     return(df_throughput, header)
