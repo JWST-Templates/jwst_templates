@@ -28,7 +28,9 @@ def get_boxcar4autocont(sp, smooth_length=100., rest_disp=2.0) :
     # smooth_length is smothing length in rest-frame Angstroms.  Default of 100A works well for MagE spectra.
     # rest_disp is rest-frame dispersion in Angstroms
     # Returns the boxcar size in pixels
-    return(np.int(util.round_up_to_odd(smooth_length / rest_disp)))  # in pixels
+    boxcar = np.int(util.round_up_to_odd(smooth_length / rest_disp))  # in pixels
+    if boxcar%2 == 0: boxcar += 1 # needs to be odd
+    return(boxcar)
 
 
 def get_boxcar4autocont_nirspec(gratingname, filtername, zz, smooth_length=100) :
