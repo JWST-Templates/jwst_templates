@@ -18,6 +18,8 @@ from astropy.nddata import StdDevUncertainty
 
 import os
 
+from . import continuum
+
 def rebin_spec_new(wave, specin, new_wave, kind='linear', fill=np.nan, return_masked=False):
     # By default, this does linear interpolation (kind='linear').
     # Rebin spectra (wave, specin) to new wavelength aray new_wave.  Fill values are nan.  If return_masked, then mask the nans
@@ -96,7 +98,9 @@ def integrate1D_mask(cubefile, maskfile, zsource=None, operation=np.nansum):
     wl = np.arange(header['CRVAL3'],  # wavelength in micron
             header['CRVAL3']+(header['CDELT3']*len(dat)), 
             header['CDELT3'])
-    
+    if len(wl) > len(dat):
+        wl = wl[:-1] # deal with weird arange glitch adding an extra wl value
+
     # reading in the mask of the galaxy (0=not galaxy, 1=galaxy)
     mask = fits.open(maskfile)[0].data
     if mask.shape != dat[0].shape:
@@ -129,7 +133,7 @@ def gaussian(x, amp, mu, sigma):
     return amp * np.exp(exponential)
 
 
-def multigauss2(x, *args):
+def multigauss(x, *args):
     ngauss = int(len(args) / 3)
     total = 0
     for n in range(ngauss):
@@ -137,17 +141,18 @@ def multigauss2(x, *args):
         j = 3*n + 1
         k = 3*n + 2
         total += gaussian(x, args[i], args[j], args[k])
-    return total    
+    return total  
 
 
-def cont_sub_curvefit(spectrum,  cont_region, line_region, line_param_dict, verbose=False, scale=1e20):
+def cont_sub_curvefit(spectrum,  line_region, line_param_dict, zz=None, obs_wl=True, verbose=False, scale=1e20):
     '''
     use scipy.optimize.curve_fit to fit N gaussians to N emission lines
     this will also give an uncertainty on each fit param, and thus on the flux, EW, etc. 
-    assume spectrum is a specutile Spectrum1D object
-    assume cont_region, line_region is a specutils SpectralRegion
+    assume spectrum is a pandas dataframe (e.g. output from integrate1D_mask or fit_autocont)
+    assume line_region is array_like, (lower_bound, upper_bound)
     assume line_param_dict is a dictionary with keys "amplitude", "wavelength", and "width"
     corresponding to gaussian amplitude, central wavelength (gauss mean), and linewidth (gauss sigma)
+    zz = redshift passed to fit_autocont
     scale exists to set numbers closer to 1 so curve_fit doesn't get mad at me. it should be ~1/flux
     returns list of line fluxes, flux errors
     if verbose, also returns curve_fit outputs (popt, pcov) and continuum-subtracted spectrum used in fitting
@@ -155,28 +160,45 @@ def cont_sub_curvefit(spectrum,  cont_region, line_region, line_param_dict, verb
     # first continuum subtract, same as before w/ specutils
     cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
 
-    spaxwave = spectrum.spectral_axis
+    if obs_wl == True:
+        wavekey = 'wave'
+    else:
+        wavekey='rest_wave'
+    spaxwave = spectrum[wavekey]
 
-    fitted_cont = fit_continuum(spectrum, window=cont_region)
-    y_cont = fitted_cont(spaxwave)
+    if "flam_autocont" in spectrum:
+        y_cont = spectrum["flam_autocont"]
+    else:
+        print("No continuum fit found - performing continuum fit now!")
+        if zz == None:
+            print ("No redshift given! Skipping continuum fit.")
+        else:
+            contfit_spectrum = continuum.fit_autocont(spectrum, zz, boxcar=51, v2mask=300, colwave='wave',colf='flux', colcont='flam_autocont') # need to tweak boxcar, v2mask tobe physical
+            y_cont = contfit_spectrum["flam_autocont"]
 
-    contsub_spec = spectrum - y_cont
+
+    #fitted_cont = fit_continuum(spectrum, window=cont_region)
+    #y_cont = fitted_cont(spaxwave)
+
+    #contsub_spec = spectrum - y_cont
 
     # now we extract the line region
-    line_min, line_max = line_region.lower.value, line_region.upper.value
+    line_min, line_max = line_region[0], line_region[1]
 
-    fit_spectrum = extract_region(contsub_spec, line_region, return_single_spectrum=True)
+    #fit_spectrum = extract_region(contsub_spec, line_region, return_single_spectrum=True)
+    fit_spectrum = spectrum[(spectrum[wavekey] > line_min) & (spectrum[wavekey] < line_max)]
+    
 
-    if max(fit_spectrum.spectral_axis.value) < 1:
-        fit_wl = fit_spectrum.spectral_axis.value * 1e4 # convert to angstrom to appease fitting gremlins
+    if max(fit_spectrum[wavekey]) < 1:
+        fit_wl = fit_spectrum[wavekey] * 1e4 # convert to angstrom to appease fitting gremlins
         wlunit = 'AA'
     else:
-        fit_wl = fit_spectrum.spectral_axis.value # don't convert if microns are greater than 1
+        fit_wl = fit_spectrum[wavekey] # don't convert if microns are greater than 1
         wlunit = 'um'
 
     # multiplying by scale factor to make fit function gremlins happy
-    fit_flux = fit_spectrum.flux.value * scale
-    fit_fluxerr = fit_spectrum.uncertainty.array * scale
+    fit_flux = (fit_spectrum.flam - fit_spectrum.flam_autocont) * scale # assuming fnu_autocont is actually flambda - I'll change this later
+    fit_fluxerr = fit_spectrum.flamerr * scale
 
     # Unpack line param dict into single line param array
     amps = line_param_dict["amplitude"]
@@ -192,7 +214,7 @@ def cont_sub_curvefit(spectrum,  cont_region, line_region, line_param_dict, verb
 
 
     # now we fit!
-    popt, pcov = curve_fit(multigauss2, fit_wl, fit_flux, p0=line_params, sigma=fit_fluxerr, absolute_sigma=False)
+    popt, pcov = curve_fit(multigauss, fit_wl, fit_flux, p0=line_params, sigma=fit_fluxerr, absolute_sigma=False)
     perr = np.sqrt(np.diag(pcov)) # calculate 1-sigma uncertainties on each parameter
     
     fluxlist = []
@@ -214,7 +236,7 @@ def cont_sub_curvefit(spectrum,  cont_region, line_region, line_param_dict, verb
 
 
     if verbose:
-        return fluxlist, fluxerrlist, popt, pcov, contsub_spec
+        return fluxlist, fluxerrlist, popt, pcov#, contsub_spec
     else:
         return fluxlist, fluxerrlist
 
@@ -230,88 +252,147 @@ def cont_sub_curvefit(spectrum,  cont_region, line_region, line_param_dict, verb
 # woohoo!
 ########################################
 
-# first, lets define if a line exists:
 
-def is_line(spectrum, line_region, cont_region, n=3.):
+def get_uplim(spec, linereg, contreg, nsigma=3, 
+              wavekey='rest_wave', fluxkey='flam', contkey='flam_autocont'):
     '''
-    Check to see if a line is present
-    Takes an expected line region, and a continuum region
-    First does continuum substraction
-    Next takes standard deviation of continuum region
-    If the peak of the line region is > n*sigma above zero, we say there is a line, and we party!
+    Get upper limit for non-detected emission line
+    spec: spectrum dataframe
+    linereg: region where your (alleged) emission line resides - array-like w/ lower, upper wavelength bound
+    contreg: nearby region without emission lines - array-like, either 2 numbers (lower,upper) or 4 (low1,up1,low2,up2)
+        low1,up1 and low2,up2 would be on opposite sides of the emission line region
+    nsigma: significance of detection - default = 3
+    wavekey: keyword for wavelength in dataframe
+    fluxkey: keyword for flux in dataframe
+    contkey: keyword for continuum flux in dataframe
+    STEPS:
+    calculate sum of pixels in linereg
+    Npix = width of linereg
+    calculate rolling sum of Npix in contreg (from min+Npix/2 to max-Npix/2)
+    calculate standard deviation of rolling sums
+    if sum(linereg) > nsigma * stddev: line exists
+    else: uplim = nsigma*stddev
     '''
-    cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
+    linespec = spec[(spec[wavekey]>linereg[0]) & (spec[wavekey]<linereg[1])]
+    linesum = sum(linespec[fluxkey]-linespec[contkey])
+    npix = len(linespec)
+    
+    if len(contreg) == 2:
+        contspec = spec[(spec[wavekey]>contreg[0]) & (spec[wavekey]<contreg[1])]
+    elif len(contreg) == 4:
+        contspec = spec[(spec[wavekey]>contreg[0]) & (spec[wavekey]<contreg[1]) 
+                        | (spec[wavekey]>contreg[2]) & (spec[wavekey]<contreg[3])]
+    
+    halfpix = np.ceil(npix/2.)
+    lowhalf = int(np.floor(npix/2.))
+    contmin = int(halfpix) # maybe add some extra thing here later for increased generality?
+    contmax = int(len(contspec) - halfpix)
+    
+    sums = []
+    for i in range(contmin, contmax):
+        sum_i = sum(contspec[fluxkey][i-lowhalf:i+lowhalf] - contspec[contkey][i-lowhalf:i+lowhalf])
+        sums.append(sum_i)
+        
+    median_sums = np.median(np.abs(sums))
+    std_sums = np.std(np.abs(sums))
+    
+    if linesum >= nsigma*std_sums:
+        print(f"There's a line here!! Significance: {linesum/std_sums:.2f}. Go forth and fit it!")
+        return 0
+    else:
+        return nsigma*std_sums
 
-    spaxwave = spectrum.spectral_axis
-
-    fitted_cont = fit_continuum(spectrum, window=cont_region)
-    y_cont = fitted_cont(spaxwave)
-
-    contsub_spec = spectrum - y_cont
-    # maybe I should put all this continuum subtraction in a seperate function at some point? 
-    # could be better than redoing it every time...
-
-    # okay, take the std deviation of the continuum region!
-    noise_spec = extract_region(contsub_spec, cont_region, return_single_spectrum=True)
-    noiseflux = noise_spec.flux.value # should be a single array of flux values
-    noise_sigma = np.std(noiseflux)
-
-    # now we extract the line region
-    line_min, line_max = line_region.lower.value, line_region.upper.value
-
-    line_spec = extract_region(contsub_spec, line_region, return_single_spectrum=True)
-    line_peak = max(line_spec.flux.value)
-
-    # now, the decision! Will we take our talents to south beach?!?
-    if line_peak > n * noise_sigma: return True
-    else: return False
 
 
-def flux_upper_limit(spectrum, line_region, cont_region, n=3, width=0.00015, verbose=False):
-    '''
-    Check to see if a line is present, then if not set an upper limit on flux
-    Takes an expected line region, and a continuum region
-    First does continuum substraction
-    Next takes standard deviation of continuum region
-    If the peak of the line region is > n*sigma above zero, we say there is a line, and we party!
-    If the peak is less than n*sigma, we set an upper limit
-    We assume a Gaussian line profile with amplitude n*sigma, and width set by "width" parameter (0.0015 micron default)
-    that flux is our upper limit
-    Should probably test this - inject a 3-sigma peak and see where if it can be recovered/fit
-    that's a later Brian problem. Later Brian is so helpful. 
-    '''
-    cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
 
-    spaxwave = spectrum.spectral_axis
 
-    fitted_cont = fit_continuum(spectrum, window=cont_region)
-    y_cont = fitted_cont(spaxwave)
 
-    contsub_spec = spectrum - y_cont
-    # maybe I should put all this continuum subtraction in a seperate function at some point? 
-    # could be better than redoing it every time...
 
-    # okay, take the std deviation of the continuum region!
-    noise_spec = extract_region(contsub_spec, cont_region, return_single_spectrum=True)
-    noiseflux = noise_spec.flux.value # should be a single array of flux values
-    noise_sigma = np.std(noiseflux)
 
-    # now we extract the line region
-    line_min, line_max = line_region.lower.value, line_region.upper.value
+# HERE BE DRAGONS
+# actually just old versions of calculating upper limits
+# the above function does a better job, so these are kept for posterity
 
-    line_spec = extract_region(contsub_spec, line_region, return_single_spectrum=True)
-    line_peak = max(line_spec.flux.value)
+#def is_line(spectrum, line_region, cont_region, n=3.):
+#    '''
+#    Check to see if a line is present
+#    Takes an expected line region, and a continuum region
+#    First does continuum substraction
+#    Next takes standard deviation of continuum region
+#    If the peak of the line region is > n*sigma above zero, we say there is a line, and we party!
+#    '''
+#    cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
+#
+#    spaxwave = spectrum.spectral_axis
+#
+#    fitted_cont = fit_continuum(spectrum, window=cont_region)
+#    y_cont = fitted_cont(spaxwave)
+#
+#    contsub_spec = spectrum - y_cont
+#    # maybe I should put all this continuum subtraction in a seperate function at some point? 
+#    # could be better than redoing it every time...
+#
+#    # okay, take the std deviation of the continuum region!
+#    noise_spec = extract_region(contsub_spec, cont_region, return_single_spectrum=True)
+#    noiseflux = noise_spec.flux.value # should be a single array of flux values
+#    noise_sigma = np.std(noiseflux)
+#
+#    # now we extract the line region
+#    line_min, line_max = line_region.lower.value, line_region.upper.value
+#
+#    line_spec = extract_region(contsub_spec, line_region, return_single_spectrum=True)
+#    line_peak = max(line_spec.flux.value)
+#
+#    # now, the decision! Will we take our talents to south beach?!?
+#    if line_peak > n * noise_sigma: return True
+#    else: return False
 
-    # now, the decision! Will we take our talents to south beach?!?
-    if line_peak > n * noise_sigma: 
-        print("There's a line here! No upper limit needed! Yippee!")
-        return -1
-    else: 
-        max_flux = np.sqrt(2*np.pi) * (n*noise_sigma) * (width * 1e4) # amp = n*sigma, convert width to Angstrom from Micron
-        if verbose:
-            return max_flux, noise_sigma, line_peak
-        else:
-            return max_flux
+
+#def flux_upper_limit(spectrum, line_region, cont_region, n=3, width=0.00015, verbose=False):
+#    '''
+#    Check to see if a line is present, then if not set an upper limit on flux
+#    Takes an expected line region, and a continuum region
+#    First does continuum substraction
+#    Next takes standard deviation of continuum region
+#    If the peak of the line region is > n*sigma above zero, we say there is a line, and we party!
+#    If the peak is less than n*sigma, we set an upper limit
+#    We assume a Gaussian line profile with amplitude n*sigma, and width set by "width" parameter (0.0015 micron default)
+#    that flux is our upper limit
+#    Should probably test this - inject a 3-sigma peak and see where if it can be recovered/fit
+#    that's a later Brian problem. Later Brian is so helpful. 
+#    '''
+#    cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
+#
+#    spaxwave = spectrum.spectral_axis
+#
+#    fitted_cont = fit_continuum(spectrum, window=cont_region)
+#    y_cont = fitted_cont(spaxwave)
+#
+#    contsub_spec = spectrum - y_cont
+#    # maybe I should put all this continuum subtraction in a seperate function at some point? 
+#    # could be better than redoing it every time...
+#
+#    # okay, take the std deviation of the continuum region!
+#    noise_spec = extract_region(contsub_spec, cont_region, return_single_spectrum=True)
+#    noiseflux = noise_spec.flux.value # should be a single array of flux values
+#    noise_sigma = np.std(noiseflux)
+#
+#    # now we extract the line region
+#    line_min, line_max = line_region.lower.value, line_region.upper.value
+#
+#    line_spec = extract_region(contsub_spec, line_region, return_single_spectrum=True)
+#    line_peak = max(line_spec.flux.value)
+#
+#    # now, the decision! Will we take our talents to south beach?!?
+#    if line_peak > n * noise_sigma: 
+#        print("There's a line here! No upper limit needed! Yippee!")
+#        return -1
+#    else: 
+#        max_flux = np.sqrt(2*np.pi) * (n*noise_sigma) * (width * 1e4) # amp = n*sigma, convert width to Angstrom from Micron
+#        if verbose:
+#            return max_flux, noise_sigma, line_peak
+#        else:
+#            return max_flux
 
 
 
