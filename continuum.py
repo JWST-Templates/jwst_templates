@@ -41,8 +41,8 @@ def get_boxcar4autocont_nirspec(gratingname, filtername, zz, smooth_length=100) 
     wht_R, wht_dispersion_micron_obs = nirspec.calc_avg_specR(gratingname, filtername)
     wht_dispersion_Arest = wht_dispersion_micron_obs *1E4 / (1+zz)  ## Deredshift, convert from micron to Angstroms
     pix = smooth_length / wht_dispersion_Arest
-    if pix%2 == 0: pix += 1 # needs to be odd
     pix = int(round(pix)) # turning it into an integer
+    if pix%2 == 0: pix += 1 # needs to be odd
     return(pix)
 
 
