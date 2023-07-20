@@ -56,7 +56,7 @@ def convert_jwst_to_cgs(spaxel, pixar_sr):
     INPUTS:
     >> spaxel  --------  a pandas dataframe set up with columns
                          "wave", "flux", "ferr"; assumes wave is 
-                         in microns and flux, ferr are in MJy
+                         in microns and flux, ferr are in MJy/sr
     OUTPUTS:
     >> spaxel ---------  the same pandas dataframe but in cgs
     '''
@@ -79,7 +79,7 @@ def convert_jwst_to_cgs(spaxel, pixar_sr):
 
 
 
-def integrate1D_mask(cubefile, maskfile, zsource=None, operation=np.nansum):
+def integrate1D_mask(cubefile, maskfile, zsource=None, operation=np.nansum, maskext=0, debug_output=False):
     '''
     Creates an integrated 1D spectrum from an IFU cube file given a pre-made mask.
     Inputs are fits files, one for the IFU cube (cubefile) and one for the mask (maskfile).
@@ -101,14 +101,34 @@ def integrate1D_mask(cubefile, maskfile, zsource=None, operation=np.nansum):
     if len(wl) > len(dat):
         wl = wl[:-1] # deal with weird arange glitch adding an extra wl value
 
+    # convert to CGS units:
+    dat2 = dat * pixar_sr * 1e6 * 1e-23 # MJy/sr -> MJy -> Jy -> erg/s/cm2/Hz
+    err2 = err * pixar_sr * 1e6 * 1e-23
+    for i in range(len(wl)):
+        dat2[i,:,:] *= 2.998e18 / (wl[i]*1e4)**2
+        err2[i,:,:] *= 2.998e18 / (wl[i]*1e4)**2
+
+
     # reading in the mask of the galaxy (0=not galaxy, 1=galaxy)
-    mask = fits.open(maskfile)[0].data
+    try: 
+        temp = len(maskext) # triggers type error if maskext is an int
+        for i in range(temp):
+            if i == 0:
+                mask = fits.open(maskfile)[maskext[i]].data
+            else:
+                mask_i = fits.open(maskfile)[maskext[i]].data 
+                mask += mask_i
+            mask[mask>1] = 1 # just in case anything gets added twice
+    except TypeError: 
+        mask = fits.open(maskfile)[maskext].data # ext 0 generally has full mask, others have smaller S/N layers from clipping
     if mask.shape != dat[0].shape:
         mask = mask.T
-        
+    
+    #npix = len(mask[mask==1].flatten())
     # broadcasting mask to IFU cube
     longmask = np.broadcast_to(mask, dat.shape)
-    
+    dat3 = dat * longmask
+    err3 = err * longmask
     # using chosen operation on flux density and associated error
     flux = operation(dat * longmask, axis=(1,2))
     error = np.sqrt(operation(err**2 * longmask, axis=(1,2)))
@@ -122,7 +142,10 @@ def integrate1D_mask(cubefile, maskfile, zsource=None, operation=np.nansum):
         wl_rest = wl / (1+zsource)
         df_cgs["rest_wave"] = wl_rest
         
-    return df_cgs
+    if debug_output == True:
+        return df_cgs, mask, dat, dat2, err2, dat3, err3
+    else:
+        return df_cgs
 
 
 
@@ -133,18 +156,33 @@ def gaussian(x, amp, mu, sigma):
     return amp * np.exp(exponential)
 
 
-def multigauss(x, *args):
+def multigauss(x, *args, fixed=None):
+    # set fixed as a list of tuples (index, value) that you wnat fixed
+    # get list of inds from list of tuples:
+    if fixed is not None:
+        fixinds = [f[0] for f in fixed]
     ngauss = int(len(args) / 3)
     total = 0
     for n in range(ngauss):
         i = 3*n
         j = 3*n + 1
         k = 3*n + 2
-        total += gaussian(x, args[i], args[j], args[k])
+        if fixed is not None:
+            if i in fixinds: ival = fixed[fixinds.index(i)][1]
+            else: ival = args[i]
+            if j in fixinds: jval = fixed[fixinds.index(j)][1]
+            else: jval = args[j]
+            if k in fixinds: kval = fixed[fixinds.index(k)][1]
+            else: kval = args[k]
+        else: 
+            ival = args[i]
+            jval = args[j]
+            kval = args[k]
+        total += gaussian(x, ival, jval, kval)
     return total  
 
 
-def cont_sub_curvefit(spectrum,  line_region, line_param_dict, zz=None, obs_wl=True, verbose=False, scale=1e20):
+def cont_sub_curvefit(spectrum,  line_region, line_param_dict, zz=None, obs_wl=True, verbose=False, scale=1e20, fixed=None):
     '''
     use scipy.optimize.curve_fit to fit N gaussians to N emission lines
     this will also give an uncertainty on each fit param, and thus on the flux, EW, etc. 
@@ -156,6 +194,8 @@ def cont_sub_curvefit(spectrum,  line_region, line_param_dict, zz=None, obs_wl=T
     scale exists to set numbers closer to 1 so curve_fit doesn't get mad at me. it should be ~1/flux
     returns list of line fluxes, flux errors
     if verbose, also returns curve_fit outputs (popt, pcov) and continuum-subtracted spectrum used in fitting
+    fixed == parameters to be held constant in fitting. Given as a list of strings of parameter names 
+    (e.g. ["width","wavelength"] to fix the wavelength and line width of each parameter)
     '''
     # first continuum subtract, same as before w/ specutils
     cgs = u.erg * u.cm**-2 * u.s**-1 * u.AA**-1
@@ -189,15 +229,15 @@ def cont_sub_curvefit(spectrum,  line_region, line_param_dict, zz=None, obs_wl=T
     fit_spectrum = spectrum[(spectrum[wavekey] > line_min) & (spectrum[wavekey] < line_max)]
     
 
-    if max(fit_spectrum[wavekey]) < 1:
-        fit_wl = fit_spectrum[wavekey] * 1e4 # convert to angstrom to appease fitting gremlins
-        wlunit = 'AA'
-    else:
-        fit_wl = fit_spectrum[wavekey] # don't convert if microns are greater than 1
-        wlunit = 'um'
-
+    #if max(fit_spectrum[wavekey]) < 1:
+    fit_wl = fit_spectrum[wavekey] * 1e4 # convert to angstrom to appease fitting gremlins
+    wlunit = 'AA'
+    #else:
+    #    fit_wl = fit_spectrum[wavekey] # don't convert if microns are greater than 1
+    #    wlunit = 'um'
+    #print(wlunit)
     # multiplying by scale factor to make fit function gremlins happy
-    fit_flux = (fit_spectrum.flam - fit_spectrum.flam_autocont) * scale # assuming fnu_autocont is actually flambda - I'll change this later
+    fit_flux = (fit_spectrum.flam - fit_spectrum.flam_autocont) * scale 
     fit_fluxerr = fit_spectrum.flamerr * scale
 
     # Unpack line param dict into single line param array
@@ -213,8 +253,25 @@ def cont_sub_curvefit(spectrum,  line_region, line_param_dict, zz=None, obs_wl=T
         line_params[3*i + 2] = sigs[i]
 
 
+    # handle any possible fixed parameters
+    if fixed is not None: 
+        fix_tuples = [] 
+        if "amplitude" in fixed: 
+            for i in range(ngauss):
+                tup = (3*i, amps[i])
+                fix_tuples.append(tup)
+        if "wavelength" in fixed: 
+            for i in range(ngauss):
+                tup = (3*i + 1, means[i])
+                fix_tuples.append(tup)
+        if "width" in fixed: 
+            for i in range(ngauss):
+                tup = (3*i + 2, sigs[i])
+                fix_tuples.append(tup)
+    else: fix_tuples = None
     # now we fit!
-    popt, pcov = curve_fit(multigauss, fit_wl, fit_flux, p0=line_params, sigma=fit_fluxerr, absolute_sigma=False)
+    fit_y = lambda x,*args: multigauss(x, *args, fixed=fix_tuples)
+    popt, pcov = curve_fit(fit_y, fit_wl, fit_flux, p0=line_params, sigma=fit_fluxerr, absolute_sigma=False)
     perr = np.sqrt(np.diag(pcov)) # calculate 1-sigma uncertainties on each parameter
     
     fluxlist = []
@@ -229,6 +286,7 @@ def cont_sub_curvefit(spectrum,  line_region, line_param_dict, zz=None, obs_wl=T
 
         if wlunit == 'um':
             fit_sigma *= 1e4  #convert sigma from micron to angstrom so output unit makes sense
+        print(fit_amp, fit_sigma)
         flux = np.sqrt(2*np.pi) * fit_amp * np.abs(fit_sigma) 
         fluxlist.append(flux)
         fluxerr = np.sqrt((d_amp/fit_amp)**2 + (d_sigma/np.abs(fit_sigma))**2) * flux
