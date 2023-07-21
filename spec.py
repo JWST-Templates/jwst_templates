@@ -157,27 +157,22 @@ def gaussian(x, amp, mu, sigma):
 
 
 def multigauss(x, *args, fixed=None):
-    # set fixed as a list of tuples (index, value) that you wnat fixed
-    # get list of inds from list of tuples:
+    # fixed is a list of tuples (index, value) that you wnat fixed
+    # do not pass fixed params as part of *args
+    # fixed params will be inserted at the appropriate index
+    argarr = np.array(args)
     if fixed is not None:
-        fixinds = [f[0] for f in fixed]
-    ngauss = int(len(args) / 3)
+        for tup in fixed:
+            argarr = np.insert(argarr, tup[0], tup[1])
+    ngauss = int(len(argarr) / 3)
     total = 0
     for n in range(ngauss):
         i = 3*n
         j = 3*n + 1
         k = 3*n + 2
-        if fixed is not None:
-            if i in fixinds: ival = fixed[fixinds.index(i)][1]
-            else: ival = args[i]
-            if j in fixinds: jval = fixed[fixinds.index(j)][1]
-            else: jval = args[j]
-            if k in fixinds: kval = fixed[fixinds.index(k)][1]
-            else: kval = args[k]
-        else: 
-            ival = args[i]
-            jval = args[j]
-            kval = args[k]
+        ival = argarr[i]
+        jval = argarr[j]
+        kval = argarr[k]
         total += gaussian(x, ival, jval, kval)
     return total  
 
@@ -255,19 +250,23 @@ def cont_sub_curvefit(spectrum,  line_region, line_param_dict, zz=None, obs_wl=T
 
     # handle any possible fixed parameters
     if fixed is not None: 
+        orig_params = np.copy(line_params)
         fix_tuples = [] 
         if "amplitude" in fixed: 
             for i in range(ngauss):
                 tup = (3*i, amps[i])
                 fix_tuples.append(tup)
+                line_params = np.delete(line_params, 3*i - i) # remove param so it is not used in fitting
         if "wavelength" in fixed: 
             for i in range(ngauss):
                 tup = (3*i + 1, means[i])
                 fix_tuples.append(tup)
+                line_params = np.delete(line_params, 3*i + 1 - i) # remove param so it is not used in fitting
         if "width" in fixed: 
             for i in range(ngauss):
                 tup = (3*i + 2, sigs[i])
                 fix_tuples.append(tup)
+                line_params = np.delete(line_params, 3*i + 2 - i) # remove param so it is not used in fitting
     else: fix_tuples = None
     # now we fit!
     fit_y = lambda x,*args: multigauss(x, *args, fixed=fix_tuples)
@@ -279,9 +278,21 @@ def cont_sub_curvefit(spectrum,  line_region, line_param_dict, zz=None, obs_wl=T
     for n in range(ngauss):
         i, j, k = 3*n, 3*n+1, 3*n+2
 
+        if fixed is not None:
+            if "amplitude" in fixed: 
+                popt = np.insert(popt, i, orig_params[i])
+                perr = np.insert(perr, i, 0)
+            if "wavelength" in fixed: 
+                popt = np.insert(popt, j, orig_params[j])
+                perr = np.insert(perr, j, 0)
+            if "width" in fixed:
+                popt = np.insert(popt, k, orig_params[k])
+                perr = np.insert(perr, k, 0)
+            
         fit_amp, fit_mu, fit_sigma = popt[i], popt[j], popt[k]
-        fit_amp /= scale # dividing by scale factor to make outputs make sense. 
         d_amp, d_mu, d_sigma = perr[i], perr[j], perr[k]
+
+        fit_amp /= scale # dividing by scale factor to make outputs make sense. 
         d_amp /= scale # thanks code gremlins, look what you make us do!
 
         if wlunit == 'um':
